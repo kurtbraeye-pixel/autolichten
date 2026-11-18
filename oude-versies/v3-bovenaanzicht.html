@@ -1,0 +1,588 @@
+<title>Autolichten</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=B612+Mono:wght@400;700&family=Lexend:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: nachtscène van boven links (plakt vast), schakelaars en situaties rechts. Op een telefoon staat de scène bovenaan en blijft zichtbaar tijdens het scrollen. */
+:root{
+  --bg:#0a0f1f;
+  --panel:#121a31;
+  --line:#2b3860;
+  --text:#eef2ff;
+  --muted:#a6b3d3;
+  --green:#3ddc84;
+  --blue:#5aa2ff;
+  --amber:#ffb224;
+  --alert:#ff5a5f;
+  --focus:#ffd166;
+  --font:"Lexend",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"B612 Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:dark;
+}
+html{background:var(--bg)}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:16px;line-height:1.4}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--bg)}
+button{font:inherit;color:inherit;cursor:pointer}
+button:focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+
+.page{
+  max-width:1180px;margin:0 auto;
+  padding-block:20px 48px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.top{display:flex;align-items:center;gap:14px;margin-bottom:14px}
+.top .logo{width:58px;height:40px;color:var(--amber);flex:none}
+.top h1{margin:0;font-size:clamp(26px,6vw,36px);font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.top p{margin:2px 0 0;color:var(--muted);font-size:15px}
+
+.app{display:grid;grid-template-columns:minmax(0,1fr);gap:22px}
+.stage{
+  position:sticky;top:env(safe-area-inset-top,0px);z-index:5;
+  background:var(--bg);padding-block:6px;
+  display:flex;justify-content:center;
+}
+.stagebox{position:relative;border-radius:18px;overflow:hidden;border:1px solid var(--line);line-height:0;background:#05081a}
+svg.scene{display:block;height:clamp(300px,52svh,560px);width:auto;aspect-ratio:9/16;max-width:100%}
+
+.readout{
+  position:absolute;top:10px;left:10px;display:flex;align-items:center;gap:8px;
+  padding:6px 12px 6px 9px;border-radius:99px;line-height:1.2;
+  background:rgba(10,15,31,.82);border:1px solid var(--line);
+}
+.readout svg{width:22px;height:22px;color:var(--muted)}
+.readout output{font-family:var(--mono);font-weight:700;font-size:17px;white-space:nowrap}
+.warn{
+  position:absolute;top:10px;right:10px;display:flex;align-items:center;gap:6px;
+  padding:6px 12px 6px 9px;border-radius:99px;line-height:1.2;
+  background:var(--alert);color:#fff;font-weight:700;font-size:15px;
+}
+.warn[hidden]{display:none}
+.warn svg{width:20px;height:20px}
+
+.panel{display:grid;gap:28px;min-width:0}
+.h{margin:0 0 10px;font-size:12px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--muted)}
+
+.lights{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.light{
+  --c:var(--green);
+  display:grid;grid-template-columns:1fr auto;
+  grid-template-areas:"ico sw" "name name" "hint hint" "dist dist";
+  align-items:center;row-gap:6px;column-gap:8px;min-width:0;
+  text-align:left;padding:14px 14px 12px;
+  background:var(--panel);border:2px solid var(--line);border-radius:14px;
+  transition:border-color .2s,background-color .2s;
+}
+.light.blue{--c:var(--blue)}
+.light.amber{--c:var(--amber)}
+.light .ico{grid-area:ico;width:56px;height:38px;color:#6c7aa3;transition:color .2s,filter .2s}
+.light .sw{grid-area:sw;width:46px;height:26px;border-radius:99px;background:#2a3558;position:relative;transition:background-color .2s}
+.light .sw::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#8b98bd;transition:transform .2s,background-color .2s}
+.light .name{grid-area:name;font-weight:600;font-size:17px}
+.light .hint{grid-area:hint;color:var(--muted);font-size:14px}
+.light .dist{grid-area:dist;font-family:var(--mono);font-weight:700;font-size:15px}
+.light[aria-pressed="true"]{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--panel))}
+.light[aria-pressed="true"] .ico{color:var(--c);filter:drop-shadow(0 0 7px var(--c))}
+.light[aria-pressed="true"] .sw{background:var(--c)}
+.light[aria-pressed="true"] .sw::after{transform:translateX(20px);background:var(--bg)}
+
+.alloff{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
+  padding:14px;background:transparent;border:2px dashed var(--line);border-radius:14px;color:var(--muted);
+  font-weight:600;font-size:16px;transition:border-color .2s,color .2s;
+}
+.alloff svg{width:30px;height:30px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.alloff:hover{border-color:var(--muted);color:var(--text)}
+
+.sits{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.sit{
+  display:flex;flex-direction:column;align-items:center;gap:8px;padding:14px 8px 12px;
+  background:var(--panel);border:2px solid var(--line);border-radius:14px;font-weight:600;font-size:16px;
+  transition:border-color .2s,background-color .2s;
+}
+.sit svg{width:38px;height:38px;color:var(--muted);transition:color .2s}
+.sit[aria-pressed="true"]{border-color:var(--amber);background:color-mix(in srgb,var(--amber) 13%,var(--panel))}
+.sit[aria-pressed="true"] svg{color:var(--amber)}
+
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{
+  display:inline-flex;align-items:center;gap:9px;padding:10px 18px 10px 14px;
+  background:var(--panel);border:2px solid var(--line);border-radius:99px;font-weight:500;font-size:16px;
+  transition:border-color .2s,background-color .2s;
+}
+.chip svg{width:26px;height:26px;color:var(--muted)}
+.chip[aria-pressed="true"]{border-color:var(--blue);background:color-mix(in srgb,var(--blue) 14%,var(--panel))}
+.chip[aria-pressed="true"] svg{color:var(--blue)}
+
+.i24{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---- scène: alles wordt gestuurd met klassen op #scene ---- */
+#scene .m,#scene .g,#scene .halo,#scene .onc-only,#scene .dazzle,#scene .fogveil,#scene .fogcut{opacity:0;transition:opacity .35s}
+#scene.s-stand .m-stand,#scene.s-stand .g-stand{opacity:1}
+#scene.s-dim .m-dim,#scene.s-dim .g-dim{opacity:1}
+#scene.s-groot .m-groot,#scene.s-groot .g-groot{opacity:1}
+#scene.s-mistf .m-mistf,#scene.s-mistf .g-mistf{opacity:1}
+#scene.s-onc .onc-only{opacity:1}
+#scene.s-fog .fogveil,#scene.s-fog .fogcut{opacity:1}
+
+#scene .bulb{fill:#252e4d;transition:fill .3s}
+#scene.s-stand .bulb{fill:#ffe39a}
+#scene.s-dim .bulb{fill:#fff6da}
+#scene.s-groot .bulb{fill:#eaf2ff}
+#scene .fogf{fill:#252e4d;transition:fill .3s}
+#scene.s-mistf .fogf{fill:#fff0b0}
+#scene .tail{fill:#3b1018;transition:fill .3s}
+#scene.s-tail .tail{fill:#ff3a3a}
+#scene .fogr{fill:#3b1018;transition:fill .3s}
+#scene.s-mista .fogr{fill:#ff2a2a}
+
+#scene.s-stand .halo-stand{opacity:calc(.85*var(--hd,1))}
+#scene.s-dim .halo-stand,#scene.s-groot .halo-stand{opacity:0}
+#scene.s-dim .halo-dim{opacity:calc(.9*var(--hd,1))}
+#scene.s-groot .halo-groot{opacity:var(--hd,1)}
+#scene.s-mistf .halo-fogf{opacity:calc(.9*var(--hd,1))}
+#scene.s-tail .halo-tail{opacity:calc(.8*var(--hd,1))}
+#scene.s-mista .halo-fogr{opacity:var(--hd,1)}
+
+#scene.s-groot.s-onc .dazzle{opacity:1;animation:pulse 1s ease-in-out infinite}
+@keyframes pulse{0%,100%{stroke-opacity:1}50%{stroke-opacity:.25}}
+
+#scene .rl{font-family:var(--mono);font-size:10px;fill:#9fb0d9;paint-order:stroke;stroke:#05081a;stroke-width:3px;stroke-linejoin:round}
+
+#scene .nightrect{transition:opacity .8s}
+#scene.s-day .nightrect{opacity:.05}
+#scene #world{transition:filter .8s}
+#scene.s-day #world{filter:brightness(2.1) saturate(1.1)}
+#scene .glowwrap{transition:opacity .8s}
+#scene.s-day .glowwrap{opacity:.2}
+#scene.s-day{--hd:.3}
+#scene .rig{transform-origin:230px 550px}
+#scene.park-in .rig{animation:parkIn 2.6s ease-in-out forwards}
+#scene.park-out .rig{animation:parkIn 2.6s ease-in-out reverse forwards}
+@keyframes parkIn{
+  0%{transform:translate(0,0) rotate(0)}
+  40%{transform:translate(42px,6px) rotate(16deg)}
+  75%{transform:translate(70px,14px) rotate(6deg)}
+  100%{transform:translate(78px,18px) rotate(0)}
+}
+#scene .scroll{animation:roll 1.4s linear infinite;animation-play-state:paused}
+#scene.s-moving .scroll{animation-play-state:running}
+@keyframes roll{to{transform:translateY(136px)}}
+
+@media (min-width:900px){
+  .app{grid-template-columns:auto minmax(0,1fr);gap:36px;align-items:start}
+  .stage{top:16px;padding:0;align-self:start}
+  svg.scene{height:clamp(460px,calc(100svh - 130px),800px)}
+  .sits{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important}
+}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-lamp" viewBox="0 0 52 36"><path d="M31 6V30C42 30 48 24.5 48 18S42 6 31 6Z" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linejoin="round"/></symbol>
+    <symbol id="i-stand" viewBox="0 0 52 36" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 7V29C22 29 25 24 25 18S22 7 16 7Z"/><path d="M36 7V29C30 29 27 24 27 18S30 7 36 7Z"/>
+      <path d="M11 12 3 9.5M11 18H3M11 24 3 26.5"/><path d="M41 12l8-2.5M41 18h8M41 24l8 2.5"/>
+    </symbol>
+    <symbol id="i-dim" viewBox="0 0 52 36" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M31 6V30C42 30 48 24.5 48 18S42 6 31 6Z"/><path d="M26 8L6 14M26 14L6 20M26 20L6 26M26 26L6 32"/>
+    </symbol>
+    <symbol id="i-groot" viewBox="0 0 52 36" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M31 6V30C42 30 48 24.5 48 18S42 6 31 6Z"/><path d="M26 9H5M26 15H5M26 21H5M26 27H5"/>
+    </symbol>
+    <symbol id="i-mistf" viewBox="0 0 52 36" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M31 6V30C42 30 48 24.5 48 18S42 6 31 6Z"/><path d="M26 10H5M26 18H5M26 26H5"/><path d="M16 3c-3.5 3-3.5 6 0 9s3.5 6 0 9-3.5 6 0 9"/>
+    </symbol>
+    <symbol id="i-mista" viewBox="0 0 52 36" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(52 0) scale(-1 1)"><path d="M31 6V30C42 30 48 24.5 48 18S42 6 31 6Z"/><path d="M26 10H5M26 18H5M26 26H5"/><path d="M16 3c-3.5 3-3.5 6 0 9s3.5 6 0 9-3.5 6 0 9"/></g>
+    </symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12c3-5 6.5-7 10-7s7 2 10 7c-3 5-6.5 7-10 7S5 17 2 12Z"/><circle cx="12" cy="12" r="3.2"/></symbol>
+    <symbol id="i-power" viewBox="0 0 24 24"><path d="M12 3v8"/><path d="M6.3 6.6a8 8 0 1 0 11.4 0"/></symbol>
+    <symbol id="i-warn" viewBox="0 0 24 24"><path d="M12 3 22 20H2Z" fill="currentColor" stroke="currentColor"/><path d="M12 9.5v5" stroke="#ff5a5f" stroke-width="2.2"/><circle cx="12" cy="17.3" r=".6" fill="#ff5a5f" stroke="#ff5a5f"/></symbol>
+    <symbol id="i-park" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M9.5 17V7h3.6a3 3 0 0 1 0 6H9.5"/></symbol>
+    <symbol id="i-onc" viewBox="0 0 24 24"><rect x="3" y="6" width="7" height="14" rx="2.5"/><path d="M4.8 8.5h.1M8.2 8.5h.1"/><rect x="14" y="4" width="7" height="14" rx="2.5"/><path d="M15.8 15.5h.1M19.2 15.5h.1"/></symbol>
+    <symbol id="i-road" viewBox="0 0 24 24"><path d="M4 21 9.5 5M20 21 14.5 5M12 21v-3M12 15v-3M12 9V7"/><path d="M19 2.5a3 3 0 1 0 2.5 4.6 3.4 3.4 0 0 1-2.5-4.6Z"/></symbol>
+    <symbol id="i-cloud" viewBox="0 0 24 24"><path d="M7 15.5a4 4 0 0 1 .6-7.95A5.5 5.5 0 0 1 18 9a3.3 3.3 0 0 1-.5 6.5Z"/><path d="M4 19.5h16"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5V5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M5.3 18.7l1.8-1.8M16.9 7.1l1.8-1.8"/></symbol>
+    <symbol id="i-move" viewBox="0 0 24 24"><path d="M12 21V5M6 11l6-6 6 6"/></symbol>
+  </defs>
+</svg>
+
+<div class="page">
+  <header class="top">
+    <svg class="logo" viewBox="0 0 52 36" aria-hidden="true"><use href="#i-groot"/></svg>
+    <div>
+      <h1>Autolichten</h1>
+      <p>Zet een licht aan. Kijk naar de bundel.</p>
+    </div>
+  </header>
+
+  <div class="app">
+    <section class="stage" aria-label="Weg in het donker">
+      <div class="stagebox">
+        <svg id="scene" class="scene" viewBox="0 0 360 640" role="img" aria-label="Auto van boven op een donkere weg met de lichtbundels">
+          <defs>
+            <g id="treeTile"><circle cx="28" cy="30" r="19" fill="#1f5030"/><circle cx="30" cy="27" r="9" fill="#2b6b3f"/><circle cx="50" cy="100" r="15" fill="#1f5030"/><circle cx="346" cy="40" r="16" fill="#1f5030"/><circle cx="348" cy="37" r="8" fill="#2b6b3f"/><circle cx="350" cy="112" r="14" fill="#1f5030"/></g>
+            <filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="6"/></filter>
+            <filter id="soft2" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"/></filter>
+
+            <!-- gaten in de nacht (zwart = licht) -->
+            <linearGradient id="mgDim" gradientUnits="userSpaceOnUse" x1="0" y1="504" x2="0" y2="372">
+              <stop offset="0" stop-color="#000" stop-opacity="1"/><stop offset=".65" stop-color="#000" stop-opacity=".85"/><stop offset="1" stop-color="#000" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="mgGroot" gradientUnits="userSpaceOnUse" x1="0" y1="504" x2="0" y2="100">
+              <stop offset="0" stop-color="#000" stop-opacity="1"/><stop offset=".4" stop-color="#000" stop-opacity=".9"/><stop offset=".78" stop-color="#000" stop-opacity=".6"/><stop offset="1" stop-color="#000" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="mgMist" gradientUnits="userSpaceOnUse" x1="0" y1="508" x2="0" y2="418">
+              <stop offset="0" stop-color="#000" stop-opacity="1"/><stop offset=".7" stop-color="#000" stop-opacity=".8"/><stop offset="1" stop-color="#000" stop-opacity="0"/>
+            </linearGradient>
+            <radialGradient id="rgMask"><stop offset="0" stop-color="#000" stop-opacity="1"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+
+            <!-- kleur van de bundels -->
+            <linearGradient id="ggDim" gradientUnits="userSpaceOnUse" x1="0" y1="504" x2="0" y2="372">
+              <stop offset="0" stop-color="#fff0cc" stop-opacity=".55"/><stop offset=".6" stop-color="#fff0cc" stop-opacity=".3"/><stop offset="1" stop-color="#fff0cc" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="ggGroot" gradientUnits="userSpaceOnUse" x1="0" y1="504" x2="0" y2="100">
+              <stop offset="0" stop-color="#e4eeff" stop-opacity=".6"/><stop offset=".4" stop-color="#e4eeff" stop-opacity=".38"/><stop offset=".8" stop-color="#e4eeff" stop-opacity=".15"/><stop offset="1" stop-color="#e4eeff" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="ggMist" gradientUnits="userSpaceOnUse" x1="0" y1="508" x2="0" y2="418">
+              <stop offset="0" stop-color="#ffe29a" stop-opacity=".6"/><stop offset="1" stop-color="#ffe29a" stop-opacity="0"/>
+            </linearGradient>
+            <radialGradient id="rgWarm"><stop offset="0" stop-color="#fff1c4" stop-opacity=".95"/><stop offset="1" stop-color="#fff1c4" stop-opacity="0"/></radialGradient>
+            <radialGradient id="rgCool"><stop offset="0" stop-color="#dbe8ff" stop-opacity=".95"/><stop offset="1" stop-color="#dbe8ff" stop-opacity="0"/></radialGradient>
+            <radialGradient id="rgFog"><stop offset="0" stop-color="#ffe9a0" stop-opacity=".95"/><stop offset="1" stop-color="#ffe9a0" stop-opacity="0"/></radialGradient>
+            <radialGradient id="rgRed"><stop offset="0" stop-color="#ff3030" stop-opacity=".95"/><stop offset="1" stop-color="#ff3030" stop-opacity="0"/></radialGradient>
+
+            <!-- mist: zicht stopt op ± 50 m -->
+            <linearGradient id="fogGrad" gradientUnits="userSpaceOnUse" x1="0" y1="504" x2="0" y2="296">
+              <stop offset="0" stop-color="#b8c4d6" stop-opacity="0"/><stop offset=".31" stop-color="#b8c4d6" stop-opacity=".15"/><stop offset=".6" stop-color="#b8c4d6" stop-opacity=".45"/><stop offset=".84" stop-color="#b8c4d6" stop-opacity=".85"/><stop offset="1" stop-color="#b8c4d6" stop-opacity="1"/>
+            </linearGradient>
+            <linearGradient id="fogCutW" gradientUnits="userSpaceOnUse" x1="0" y1="344" x2="0" y2="298">
+              <stop offset="0" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#fff" stop-opacity="1"/>
+            </linearGradient>
+            <linearGradient id="fogCutB" gradientUnits="userSpaceOnUse" x1="0" y1="344" x2="0" y2="298">
+              <stop offset="0" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity="1"/>
+            </linearGradient>
+
+            <mask id="night" maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="640">
+              <rect width="360" height="640" fill="#fff"/>
+              <g class="rig" filter="url(#soft)">
+                <g class="m m-stand"><circle cx="215" cy="506" r="30" fill="url(#rgMask)"/><circle cx="245" cy="506" r="30" fill="url(#rgMask)"/></g>
+                <path class="m m-mistf" d="M212 508L100 490Q130 428 230 420Q330 428 360 490L248 508Z" fill="url(#mgMist)"/>
+                <path class="m m-dim" d="M214 504L112 474Q130 424 208 396Q236 366 268 374Q322 392 340 462L246 504Z" fill="url(#mgDim)"/>
+                <path class="m m-groot" d="M214 504L130 482Q160 400 168 300L168 150Q230 70 292 150L292 300Q300 400 330 482L246 504Z" fill="url(#mgGroot)"/>
+              </g>
+              <rect class="fogcut" width="360" height="640" fill="url(#fogCutW)"/>
+            </mask>
+            <mask id="glowMask" maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="640">
+              <rect width="360" height="640" fill="#fff"/>
+              <rect class="fogcut" width="360" height="640" fill="url(#fogCutB)"/>
+            </mask>
+
+            <!-- auto van boven (voorkant = boven) -->
+            <g id="carShape">
+              <rect x="-27" y="12" width="6" height="18" rx="2.5" fill="#080b14"/><rect x="21" y="12" width="6" height="18" rx="2.5" fill="#080b14"/>
+              <rect x="-27" y="68" width="6" height="18" rx="2.5" fill="#080b14"/><rect x="21" y="68" width="6" height="18" rx="2.5" fill="#080b14"/>
+              <rect x="-30" y="34" width="9" height="5" rx="2" style="fill:var(--carc2,#6179a3)"/><rect x="21" y="34" width="9" height="5" rx="2" style="fill:var(--carc2,#6179a3)"/>
+              <path d="M-23 14Q-23 2 -10 0H10Q23 2 23 14V86Q23 98 10 100H-10Q-23 98 -23 86Z" style="fill:var(--carc,#53698f)"/>
+              <path d="M-17 12Q-17 6 -9 5H9Q17 6 17 12V28H-17Z" style="fill:var(--carc2,#6179a3)"/>
+              <path d="M-16 30L-13 42H13L16 30Z" fill="#141c30"/>
+              <rect x="-15" y="42" width="30" height="26" rx="5" style="fill:var(--carc3,#3d4f74)"/>
+              <path d="M-13 68L-15 78H15L13 68Z" fill="#141c30"/>
+            </g>
+          </defs>
+
+          <!-- wereld (alleen zichtbaar waar licht valt) -->
+          <g id="world">
+            <rect width="360" height="640" fill="#17331f"/>
+            <rect x="272" y="498" width="70" height="136" fill="#323a50"/>
+            <rect x="80" width="200" height="640" fill="#2c3346"/>
+            <rect x="88" width="3" height="640" fill="#e8ecf5"/><rect x="269" width="3" height="640" fill="#e8ecf5"/>
+            <path d="M272 498H340V632H272" fill="none" stroke="#e8ecf5" stroke-width="2.5"/>
+            <g class="scroll">
+              <use href="#treeTile" y="-136"/><use href="#treeTile" y="0"/><use href="#treeTile" y="136"/><use href="#treeTile" y="272"/><use href="#treeTile" y="408"/><use href="#treeTile" y="544"/>
+              <line x1="180" y1="-136" x2="180" y2="776" stroke="#f2f4fa" stroke-width="3" stroke-dasharray="20 14"/>
+              <line x1="72" y1="-136" x2="72" y2="776" stroke="#f5f6fa" stroke-width="4" stroke-dasharray="10 58"/>
+              <line x1="72" y1="-136" x2="72" y2="776" stroke="#e23a3a" stroke-width="4" stroke-dasharray="3 65"/>
+            </g>
+
+            <!-- voetganger met fluovest, 15 m -->
+            <g transform="translate(294 444)"><ellipse rx="10" ry="5.5" fill="#ffd21f"/><rect x="-10" y="-1" width="20" height="2" fill="#fff" opacity=".85"/><circle r="4.2" fill="#d9a77e"/></g>
+            <!-- kegel, 25 m -->
+            <g transform="translate(222 402)"><rect x="-8" y="-8" width="16" height="16" rx="2" fill="#242a3a"/><circle r="6.5" fill="#ff6a1a"/><circle r="2.8" fill="#fff3e0"/></g>
+            <!-- ree, 63 m -->
+            <g transform="translate(236 250)"><ellipse rx="15" ry="7.5" fill="#8b5e3c"/><circle cx="-18" cy="-1" r="5.5" fill="#8b5e3c"/><path d="M-20 -6l-3-8M-20 -6l3-9M-23 -14l-3-2" stroke="#d9c6a3" stroke-width="1.7" stroke-linecap="round" fill="none"/><circle cx="-21" cy="1" r="1.3" fill="#e9ff7a"/><circle cx="-16.5" cy="2" r="1.3" fill="#e9ff7a"/></g>
+            <!-- tegenligger -->
+            <g class="onc-only"><g transform="translate(130 215) rotate(180)" style="--carc:#8a6a4e;--carc2:#a28264;--carc3:#6c523c"><use href="#carShape"/></g></g>
+          </g>
+
+          <rect class="fogveil" width="360" height="640" fill="url(#fogGrad)"/>
+          <rect class="nightrect" width="360" height="640" fill="#04061a" fill-opacity=".93" mask="url(#night)"/>
+
+          <!-- gekleurde bundels -->
+          <g class="glowwrap" mask="url(#glowMask)" style="mix-blend-mode:screen">
+            <g class="rig" filter="url(#soft2)">
+              <g class="g g-stand"><circle cx="215" cy="506" r="24" fill="url(#rgWarm)" opacity=".55"/><circle cx="245" cy="506" r="24" fill="url(#rgWarm)" opacity=".55"/></g>
+              <path class="g g-mistf" d="M212 508L100 490Q130 428 230 420Q330 428 360 490L248 508Z" fill="url(#ggMist)"/>
+              <path class="g g-dim" d="M214 504L112 474Q130 424 208 396Q236 366 268 374Q322 392 340 462L246 504Z" fill="url(#ggDim)"/>
+              <path class="g g-groot" d="M214 504L130 482Q160 400 168 300L168 150Q230 70 292 150L292 300Q300 400 330 482L246 504Z" fill="url(#ggGroot)"/>
+            </g>
+          </g>
+
+          <!-- tegenligger: eigen lichten -->
+          <g class="onc-only">
+            <ellipse cx="130" cy="252" rx="62" ry="38" fill="url(#rgWarm)" opacity=".35"/>
+            <circle cx="115" cy="212" r="16" fill="url(#rgWarm)"/><circle cx="145" cy="212" r="16" fill="url(#rgWarm)"/>
+            <circle cx="115" cy="212" r="3.6" fill="#fffbea"/><circle cx="145" cy="212" r="3.6" fill="#fffbea"/>
+          </g>
+          <circle class="dazzle" cx="130" cy="165" r="62" fill="none" stroke="#ff5a5f" stroke-width="3.5" stroke-dasharray="9 7"/>
+
+          <g aria-hidden="true">
+            <rect x="274" y="500" width="64" height="130" rx="3" fill="none" stroke="#9fb0d9" stroke-opacity=".45" stroke-width="1.5" stroke-dasharray="6 5"/>
+            <rect x="296" y="468" width="24" height="24" rx="5" fill="#2b6cd6"/>
+            <text x="308" y="486" text-anchor="middle" style="font-family:var(--font);font-weight:700;font-size:17px" fill="#fff">P</text>
+          </g>
+          <!-- afstanden -->
+          <g class="rl" aria-hidden="true">
+            <text x="6" y="428">20 m</text><text x="6" y="348">40 m</text><text x="6" y="268">60 m</text><text x="6" y="188">80 m</text><text x="6" y="108">100 m</text>
+          </g>
+          <g stroke="#9fb0d9" stroke-opacity=".55" stroke-width="1" aria-hidden="true">
+            <path d="M0 424h14M0 344h14M0 264h14M0 184h14M0 104h14M360 424h-14M360 344h-14M360 264h-14M360 184h-14M360 104h-14"/>
+          </g>
+
+          <g class="rig">
+          <!-- achterlichten: gloed op de weg -->
+          <g transform="translate(230 500)">
+            <circle class="halo halo-tail" cx="-16" cy="97" r="24" fill="url(#rgRed)"/><circle class="halo halo-tail" cx="16" cy="97" r="24" fill="url(#rgRed)"/>
+            <ellipse class="halo halo-fogr" cx="0" cy="118" rx="96" ry="64" fill="url(#rgRed)"/>
+          </g>
+
+          <!-- onze auto -->
+          <g transform="translate(230 500)" opacity=".96">
+            <use href="#carShape"/>
+            <circle class="halo halo-stand" cx="-15" cy="4" r="14" fill="url(#rgWarm)"/><circle class="halo halo-stand" cx="15" cy="4" r="14" fill="url(#rgWarm)"/>
+            <circle class="halo halo-dim" cx="-15" cy="4" r="26" fill="url(#rgWarm)"/><circle class="halo halo-dim" cx="15" cy="4" r="26" fill="url(#rgWarm)"/>
+            <circle class="halo halo-groot" cx="-15" cy="4" r="38" fill="url(#rgCool)"/><circle class="halo halo-groot" cx="15" cy="4" r="38" fill="url(#rgCool)"/>
+            <circle class="halo halo-fogf" cx="-10" cy="10" r="16" fill="url(#rgFog)"/><circle class="halo halo-fogf" cx="10" cy="10" r="16" fill="url(#rgFog)"/>
+            <ellipse class="bulb" cx="-15" cy="4.5" rx="6.5" ry="3.2"/><ellipse class="bulb" cx="15" cy="4.5" rx="6.5" ry="3.2"/>
+            <circle class="fogf" cx="-10" cy="10.5" r="2.3"/><circle class="fogf" cx="10" cy="10.5" r="2.3"/>
+            <rect class="tail" x="-21" y="95" width="10" height="4" rx="2"/><rect class="tail" x="11" y="95" width="10" height="4" rx="2"/>
+            <circle class="fogr" cx="-4" cy="98" r="2.4"/>
+            <circle class="halo halo-fogr" cx="-4" cy="98" r="14" fill="url(#rgRed)"/>
+          </g>
+          </g>
+        </svg>
+
+        <div class="readout" aria-live="polite">
+          <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-eye"/></svg>
+          <span class="sr" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)">Je ziet</span>
+          <output id="reach">0 m</output>
+        </div>
+        <div class="warn" id="warn" hidden>
+          <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-warn"/></svg>
+          <span>Verblind!</span>
+        </div>
+      </div>
+    </section>
+
+    <div class="panel">
+      <section>
+        <h2 class="h">Lichten</h2>
+        <div class="lights" role="group" aria-label="Lichten">
+          <button class="light" type="button" data-light="stand" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 52 36" aria-hidden="true"><use href="#i-stand"/></svg>
+            <span class="sw" aria-hidden="true"></span>
+            <span class="name">Standlicht</span>
+            <span class="hint">Parkeren in het donker</span>
+            <span class="dist">0 m</span>
+          </button>
+          <button class="light" type="button" data-light="dim" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 52 36" aria-hidden="true"><use href="#i-dim"/></svg>
+            <span class="sw" aria-hidden="true"></span>
+            <span class="name">Dimlicht</span>
+            <span class="hint">Rijden in het donker</span>
+            <span class="dist">± 30 m</span>
+          </button>
+          <button class="light blue" type="button" data-light="groot" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 52 36" aria-hidden="true"><use href="#i-groot"/></svg>
+            <span class="sw" aria-hidden="true"></span>
+            <span class="name">Grootlicht</span>
+            <span class="hint">Geen tegenligger</span>
+            <span class="dist">± 100 m</span>
+          </button>
+          <button class="light" type="button" data-light="mistf" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 52 36" aria-hidden="true"><use href="#i-mistf"/></svg>
+            <span class="sw" aria-hidden="true"></span>
+            <span class="name">Mistlicht voor</span>
+            <span class="hint">Zicht minder dan 100 m</span>
+            <span class="dist">± 20 m</span>
+          </button>
+          <button class="light amber" type="button" data-light="mista" aria-pressed="false">
+            <svg class="ico" viewBox="0 0 52 36" aria-hidden="true"><use href="#i-mista"/></svg>
+            <span class="sw" aria-hidden="true"></span>
+            <span class="name">Mistlicht achter</span>
+            <span class="hint">Zicht minder dan 100 m</span>
+          </button>
+          <button class="alloff" type="button" id="alloff">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><use href="#i-power"/></svg>
+            <span>Alles uit</span>
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="h">Wanneer?</h2>
+        <div class="sits">
+          <button class="sit" type="button" data-situation="parkeren" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-park"/></svg><span>Parkeren</span>
+          </button>
+          <button class="sit" type="button" data-situation="tegenligger" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-onc"/></svg><span>Tegenligger</span>
+          </button>
+          <button class="sit" type="button" data-situation="leeg" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-road"/></svg><span>Lege weg</span>
+          </button>
+          <button class="sit" type="button" data-situation="mist" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cloud"/></svg><span>Mist 's nachts</span>
+          </button>
+          <button class="sit" type="button" data-situation="mistdag" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sun"/></svg><span>Mist overdag</span>
+          </button>
+        </div>
+      </section>
+
+      <section>
+        <h2 class="h">Op de weg</h2>
+        <div class="chips">
+          <button class="chip" type="button" data-chip="moving" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-move"/></svg><span>Rijdt</span>
+          </button>
+          <button class="chip" type="button" data-chip="parked" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-park"/></svg><span>Geparkeerd</span>
+          </button>
+          <button class="chip" type="button" data-chip="day" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-sun"/></svg><span>Overdag</span>
+          </button>
+          <button class="chip" type="button" data-chip="onc" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-onc"/></svg><span>Tegenligger</span>
+          </button>
+          <button class="chip" type="button" data-chip="fog" aria-pressed="false">
+            <svg class="i24" viewBox="0 0 24 24" aria-hidden="true"><use href="#i-cloud"/></svg><span>Mist op de weg</span>
+          </button>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var scene = document.getElementById('scene');
+  var reachEl = document.getElementById('reach');
+  var warnEl = document.getElementById('warn');
+  var KEYS = ['stand', 'dim', 'groot', 'mistf', 'mista', 'onc', 'fog', 'day', 'parked'];
+  var REACH = { stand: 0, mistf: 20, dim: 30, groot: 100 };
+  var FOG_VISIBILITY = 50;
+  var s = { stand: false, dim: false, groot: false, mistf: false, mista: false, onc: false, fog: false, day: false, parked: false, moving: true };
+  var parkTimer = null;
+
+  var SITUATIONS = {
+    parkeren:    { stand: true,  dim: false, groot: false, mistf: false, mista: false, onc: false, fog: false, day: false, parked: true },
+    tegenligger: { stand: false, dim: true,  groot: false, mistf: false, mista: false, onc: true,  fog: false, day: false, parked: false },
+    leeg:        { stand: false, dim: false, groot: true,  mistf: false, mista: false, onc: false, fog: false, day: false, parked: false },
+    mist:        { stand: false, dim: true,  groot: false, mistf: true,  mista: true,  onc: false, fog: true,  day: false, parked: false },
+    mistdag:     { stand: false, dim: true,  groot: false, mistf: true,  mista: true,  onc: false, fog: true,  day: true,  parked: false }
+  };
+
+  function setParked(p) {
+    if (p === s.parked) return;
+    s.parked = p;
+    clearTimeout(parkTimer);
+    scene.classList.remove('park-in', 'park-out');
+    void scene.getBoundingClientRect();
+    scene.classList.add(p ? 'park-in' : 'park-out');
+    if (p) {
+      parkTimer = setTimeout(function () {
+        if (s.parked) { s.moving = false; render(); }
+      }, 1900);
+    } else {
+      s.moving = true;
+    }
+  }
+
+  function toggleLight(name) {
+    var on = !s[name];
+    s[name] = on;
+    if (on && name === 'dim') s.groot = false;
+    if (on && name === 'groot') s.dim = false;
+  }
+
+  function matches(preset) {
+    return KEYS.every(function (k) { return s[k] === preset[k]; });
+  }
+
+  function render() {
+    KEYS.forEach(function (k) { scene.classList.toggle('s-' + k, s[k]); });
+    scene.classList.toggle('s-moving', s.moving);
+    scene.classList.toggle('s-tail', s.stand || s.dim || s.groot);
+
+    document.querySelectorAll('[data-light]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(s[b.getAttribute('data-light')]));
+    });
+    document.querySelectorAll('[data-chip]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(s[b.getAttribute('data-chip')]));
+    });
+    document.querySelectorAll('[data-situation]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(matches(SITUATIONS[b.getAttribute('data-situation')])));
+    });
+
+    var text;
+    if (s.day) {
+      text = s.fog ? '± ' + FOG_VISIBILITY + ' m' : '> 100 m';
+    } else {
+      var r = 0;
+      ['stand', 'dim', 'groot', 'mistf'].forEach(function (k) {
+        if (s[k]) r = Math.max(r, REACH[k]);
+      });
+      if (s.fog) r = Math.min(r, FOG_VISIBILITY);
+      text = r === 0 ? '0 m' : '± ' + r + ' m';
+    }
+    reachEl.textContent = text;
+
+    warnEl.hidden = !(s.groot && s.onc && !s.day);
+  }
+
+  document.addEventListener('click', function (e) {
+    var t = e.target.closest('button');
+    if (!t) return;
+    if (t.hasAttribute('data-light')) {
+      toggleLight(t.getAttribute('data-light'));
+    } else if (t.hasAttribute('data-chip')) {
+      var c = t.getAttribute('data-chip');
+      if (c === 'parked') {
+        setParked(!s.parked);
+      } else if (c === 'moving') {
+        if (s.parked) setParked(false); else s.moving = !s.moving;
+      } else {
+        s[c] = !s[c];
+      }
+    } else if (t.hasAttribute('data-situation')) {
+      var p = SITUATIONS[t.getAttribute('data-situation')];
+      KEYS.forEach(function (k) { if (k !== 'parked') s[k] = p[k]; });
+      setParked(p.parked);
+      if (!s.parked) s.moving = true;
+    } else if (t.id === 'alloff') {
+      ['stand', 'dim', 'groot', 'mistf', 'mista'].forEach(function (k) { s[k] = false; });
+    } else {
+      return;
+    }
+    render();
+  });
+
+  render();
+})();
+</script>
